@@ -17,15 +17,17 @@ import os
 )
 def main(gtf, out_dir):
     gtf_df = read_gtf(gtf)
-    gene_df = gtf_df[gtf_df.gene_id.notna()]
+    mask = (gtf_df.gene_name == "")
+    gtf_df.loc[mask, 'gene_name'] = '--'
+    gene_df = gtf_df[gtf_df.gene_id != ""]
     gene_type_df = gene_df.loc[:, [
-        'gene_id', 'gene_biotype']].drop_duplicates()
+        'gene_id', 'gene_name', 'gene_biotype']].drop_duplicates()
     gene_type_df.gene_biotype.replace(gtf_tools['dict_GENCODE_CATEGORY_MAP'],
                                       inplace=True)
     gene_type_file = os.path.join(out_dir, 'gene_type.txt')
     gene_type_df.to_csv(gene_type_file, sep='\t', index=False)
-    tr_df = gtf_df[gtf_df.transcript_id.notna()]
-    tr_type_df = tr_df.loc[:, ['transcript_id',
+    tr_df = gtf_df[gtf_df.transcript_id != ""]
+    tr_type_df = tr_df.loc[:, ['transcript_id', 'gene_id', 'gene_name',
                                'transcript_biotype']].drop_duplicates()
     tr_type_df.transcript_biotype.replace(
         gtf_tools['dict_GENCODE_CATEGORY_MAP'], inplace=True)
