@@ -327,7 +327,7 @@ def main(circ_dir, gene_type, out_dir, species, exp_table,
                              how='left')
     sample_out_df.loc[:, 'readNumberPortion(%)'] = sample_out_df.readNumber / \
         sample_out_df.Total_reads * 100
-    sample_out_df.loc[:, 'Species'] = species
+    sample_out_df.loc[:, 'Species'] = sp_en_name
     sample_out_df = sample_out_df.set_index('Species')
     sample_out_df.to_csv(sample_stats_file, sep='\t',
                          float_format='%.3f', na_rep=0,
@@ -428,7 +428,7 @@ def main(circ_dir, gene_type, out_dir, species, exp_table,
                                   na_rep='None')
     # merged information
     merged_out_file = os.path.join(
-        out_dir, '{sp}.{tp}.detail.txt'.format(tp=circ_type,
+        out_dir, '{sp}.all_tissues.{tp}.detail.txt'.format(tp=circ_type,
                                                sp=sp_en_name))
     merged_out_df = get_circ_exp_df(circ_name_df)
     samples = sorted(circ_name_df.sample_id.unique())
@@ -443,6 +443,7 @@ def main(circ_dir, gene_type, out_dir, species, exp_table,
                              left_on='circRNAID',
                              right_index=True,
                              how='left')
+    merged_out_df.loc[:, 'species'] = sp_en_name
     merged_out_df.to_csv(merged_out_file, sep='\t',
                          index=False, float_format='%.3f',
                          na_rep='None')
