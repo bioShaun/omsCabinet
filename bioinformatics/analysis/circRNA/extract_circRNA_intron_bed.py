@@ -32,16 +32,15 @@ def get_bed_line(intron_line):
     required=True
 )
 @click.argument(
-    'out_dir',
-    type=click.Path(file_okay=False),
+    'out_file',
+    type=click.Path(dir_okay=False, exists=False),
     required=True
 )
-def main(circ_bed, out_dir):
+def main(circ_bed, out_file):
     circ_df = pd.read_table(circ_bed)
     circ_intron_list = [each.split('|')
                         for each in circ_df.flankIntron]
-    intron_file = os.path.join(out_dir, 'circ.intron.bed')
-    intron_inf = open(intron_file, 'w')
+    intron_inf = open(out_file, 'w')
     for n, each in enumerate(circ_intron_list):
         if len(each) == 2:
             strand = circ_df.strand[n]
