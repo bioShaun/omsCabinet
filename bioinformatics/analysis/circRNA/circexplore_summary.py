@@ -227,14 +227,8 @@ def circ_flank_intron(circ_df):
 )
 @click.argument(
     'out_dir',
-    type=click.Path(file_okay=False, exists=True),
+    type=click.Path(file_okay=False),
     default=os.getcwd()
-)
-@click.option(
-    '-t',
-    '--circ_type',
-    type=click.Choice(['all_circ', 'circRNA', 'ciRNA']),
-    default='all_circ'
 )
 @click.option(
     '-s',
@@ -250,8 +244,24 @@ def circ_flank_intron(circ_df):
     help='species abbr',
     required=True
 )
+@click.option(
+    '-t',
+    '--circ_type',
+    type=click.Choice(['all_circ', 'circRNA', 'ciRNA']),
+    default='all_circ'
+)
+@click.option(
+    '--sup',
+    type=click.Path(dir_okay=False, exists=True),
+    default=None,
+    help='supplementary information to add to the end of output.'
+)
 def main(circ_dir, gene_type, out_dir, species, exp_table,
-         tissue_sample, mapping_summary, circ_type, abbr):
+         tissue_sample, mapping_summary, circ_type, abbr,
+         sup):
+    # make sure output dir exists
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
     sp_en_name = SP_EN_NAME[species]
     combined_circ_out = os.path.join(circ_dir, 'circ.combined.txt')
     if not os.path.isfile(combined_circ_out):
@@ -412,6 +422,9 @@ def main(circ_dir, gene_type, out_dir, species, exp_table,
                                       how='left')
         return each_tissue_out_df
 
+    if sup is not None:
+        sup_df = pd.read_table(sup)
+
     for each_tissue in tissue_sample_num.index:
         each_tissue_df = circ_name_df[circ_name_df.tissue == each_tissue]
         each_tissue_out_df = get_circ_exp_df(each_tissue_df)
@@ -423,13 +436,17 @@ def main(circ_dir, gene_type, out_dir, species, exp_table,
             out_dir, '{sp}.{ts}.{tp}.detail.txt'.format(tp=circ_type,
                                                         ts=each_tissue,
                                                         sp=sp_en_name))
+        each_tissue_out_df.fillna('None', inplace=True)
+        if sup is not None:
+            each_tissue_out_df = pd.merge(each_tissue_out_df, sup_df,
+                                          how='left')
+            each_tissue_out_df.fillna(0, inplace=True)
         each_tissue_out_df.to_csv(tissue_stats_file, sep='\t',
-                                  index=False, float_format='%.3f',
-                                  na_rep='None')
+                                  index=False, float_format='%.3f')
     # merged information
     merged_out_file = os.path.join(
         out_dir, '{sp}.all_tissues.{tp}.detail.txt'.format(tp=circ_type,
-                                               sp=sp_en_name))
+                                                           sp=sp_en_name))
     merged_out_df = get_circ_exp_df(circ_name_df)
     samples = sorted(circ_name_df.sample_id.unique())
     merged_out_df = combine_gene_exp(merged_out_df, exp_table_df, samples)
@@ -443,10 +460,14 @@ def main(circ_dir, gene_type, out_dir, species, exp_table,
                              left_on='circRNAID',
                              right_index=True,
                              how='left')
+    merged_out_df.fillna('None', inplace=True)
     merged_out_df.loc[:, 'species'] = sp_en_name
+    if sup is not None:
+        merged_out_df = pd.merge(merged_out_df, sup_df,
+                                 how='left')
+        merged_out_df.fillna(0, inplace=True)
     merged_out_df.to_csv(merged_out_file, sep='\t',
-                         index=False, float_format='%.3f',
-                         na_rep='None')
+                         index=False, float_format='%.3f')
 
 
 if __name__ == '__main__':

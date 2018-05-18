@@ -28,6 +28,11 @@ REGION_MAP = {
     'down': 'flankIntronDownSINE',
 }
 
+OUT_COL = [
+    'flankIntronUpSINE',
+    'flankIntronDownSINE',
+]
+
 
 def reapeat_type_stats(repeat_df):
     repeat_type_df = repeat_df.loc[:, ['region', 'repeat_class']]
@@ -81,6 +86,7 @@ def main(repeat_overlap, name, out_dir):
         out_dir, '{n}.SINE.content.txt'.format(n=name)
     )
     sine_content_df = get_sine_content(repeat_df)
+    sine_content_df = sine_content_df.loc[:, OUT_COL]
     sine_content_df.to_csv(sine_content_file, sep='\t', na_rep=0)
 
 
