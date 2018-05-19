@@ -34,7 +34,9 @@ def get_ensembl_id(query_id):
     search_result = soup.find('div', {'class': 'searchresults'})
     ensembl_id = None
     if search_result:
-        ensembl_id = search_result.a.text
+        ensembl_id = soup.findAll(
+            'div', {'class': 'hit'})[-1].findAll(
+                'div', {'class': 'rhs'})[1].text
     return ensembl_id
 
 
@@ -61,7 +63,6 @@ def main(id_list, out_dir, name_map):
     if os.path.exists(id_map_file) and os.stat(id_map_file).st_size:
         id_map_df = pd.read_table(id_map_file, index_col=0,
                                   header=None, names=['ensembl_id'])
-        id_map_df = id_map_df.drop_duplicates()
     else:
         id_map_df = pd.DataFrame({'ensembl_id': []})
     # load failed info
@@ -71,6 +72,7 @@ def main(id_list, out_dir, name_map):
             failed_id_file, header=None, names=['failed_id'])
     else:
         failed_id_df = pd.DataFrame({'failed_id': []})
+        failed_id_list = list()
     # get prepared name_map df to accelarate
     if name_map is None:
         name_map_df = pd.DataFrame({'ensembl_id': []})
@@ -84,10 +86,10 @@ def main(id_list, out_dir, name_map):
     genomic_seq_file = os.path.join(out_dir, 'ensembl.genomic.seq.fa')
     genomic_seq_inf = open(genomic_seq_file, 'a')
     # read input ids
-    id_list = [each.strip() for each in id_list]
+    id_list = set([each.strip() for each in id_list])
     for each_id in id_list:
         # skip downloaded ids
-        if each_id in id_map_df.index:
+        if each_id in id_map_df.index and (each_id not in failed_id_df.failed_id):
             continue
         name_map_success = 1
         if each_id in name_map_df.index:
@@ -107,12 +109,13 @@ def main(id_list, out_dir, name_map):
                     ensembl_seq = get_ensembl_seq(ensembl_id)
                 if ensembl_seq is None:
                     failed_id_df.loc[len(failed_id_df),
-                                     'failed_id'] = ensembl_id
+                                     'failed_id'] = each_id
             else:
                 ensembl_seq = None
                 ensembl_id = 'Not_found'
         if ensembl_seq and (ensembl_id not in id_map_df.ensembl_id):
             genomic_seq_inf.write(ensembl_seq)
+            failed_id_df = failed_id_df[failed_id_df.failed_id != each_id]
         id_map_df.loc[each_id, 'ensembl_id'] = ensembl_id
     genomic_seq_inf.close()
     id_map_df.to_csv(id_map_file, sep='\t', header=False)
