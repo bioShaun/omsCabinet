@@ -16,6 +16,13 @@ def get_sp_miseq(sp_obj, all_seq):
     return out_list
 
 
+def output_seq(seq_list, outfile):
+    if seq_list:
+        SeqIO.write(seq_list, outfile, "fasta")
+    else:
+        print 'No sequence for file {out}.'.format(out=outfile)
+
+
 @click.command()
 @click.argument(
     'all_sp_table',
@@ -41,7 +48,10 @@ def main(mirbase_dir, abbr, out_dir, all_sp_table):
     all_sp_df = pd.read_table(all_sp_table, index_col=0)
     mature_fa = os.path.join(mirbase_dir, 'mature.fa')
     hairpin_fa = os.path.join(mirbase_dir, 'hairpin.fa')
-    other_sp = all_sp_df.index.drop(abbr)
+    if abbr in all_sp_df.index:
+        other_sp = all_sp_df.index.drop(abbr)
+    else:
+        other_sp = all_sp_df.index
     sp_mature_seqs = get_sp_miseq([abbr], mature_fa)
     other_mature_seqs = get_sp_miseq(other_sp, mature_fa)
     sp_hairpin_seqs = get_sp_miseq([abbr], hairpin_fa)
@@ -51,9 +61,9 @@ def main(mirbase_dir, abbr, out_dir, all_sp_table):
         out_dir, '{sp}-other.mature.fa'.format(sp=abbr))
     sp_hairpin_seq_file = os.path.join(
         out_dir, '{sp}.hairpin.fa'.format(sp=abbr))
-    SeqIO.write(sp_mature_seqs, sp_mature_seq_file, "fasta")
-    SeqIO.write(other_mature_seqs, other_mature_seq_file, 'fasta')
-    SeqIO.write(sp_hairpin_seqs, sp_hairpin_seq_file, 'fasta')
+    output_seq(sp_mature_seqs, sp_mature_seq_file)
+    output_seq(other_mature_seqs, other_mature_seq_file)
+    output_seq(sp_hairpin_seqs, sp_hairpin_seq_file)
 
 
 if __name__ == '__main__':
