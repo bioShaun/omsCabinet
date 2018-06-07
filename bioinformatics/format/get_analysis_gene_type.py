@@ -17,8 +17,11 @@ import os
 )
 def main(gtf, out_dir):
     gtf_df = read_gtf(gtf)
-    mask = (gtf_df.gene_name == "")
-    gtf_df.loc[mask, 'gene_name'] = '--'
+    if 'gene_name' in gtf_df.columns:
+        mask = (gtf_df.gene_name == "")
+        gtf_df.loc[mask, 'gene_name'] = '--'
+    else:
+        gtf_df.loc[:, 'gene_name'] = '--'
     gene_df = gtf_df[gtf_df.gene_id != ""]
     gene_type_df = gene_df.loc[:, [
         'gene_id', 'gene_name', 'gene_biotype']].drop_duplicates()

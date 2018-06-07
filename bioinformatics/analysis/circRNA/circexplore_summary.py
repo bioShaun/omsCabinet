@@ -84,6 +84,7 @@ SP_EN_NAME = {
     'ovis_aries': 'Sheep',
     'gallus_gallus': 'Chicken',
     'sus_scrofa': 'Pig',
+    'wheat': 'wheat'
 }
 
 
