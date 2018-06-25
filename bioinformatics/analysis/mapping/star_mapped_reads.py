@@ -4,7 +4,9 @@ import os
 
 
 STAR_COLUMNS = ['Uniquely mapped reads number',
-                'Number of reads mapped to multiple loci']
+                'Number of reads mapped to multiple loci',
+                'Uniquely mapped reads %',
+                '% of reads mapped to multiple loci']
 
 
 def read_star_mapping_log(star_log_file):
@@ -34,12 +36,25 @@ def main(sample_inf, mapping_dir):
     star_log_out_df.index.name = 'Sample'
     star_log_out_df.columns = [each.strip()
                                for each in star_log_out_df.columns]
-    out_data_tmp = star_log_out_df.loc[:, STAR_COLUMNS]
-    out_data_tmp.columns = ['unique_mapped', 'multi_mapped']
-    out_data_tmp = out_data_tmp.astype('int')
-    out_data_tmp.loc[:, 'total'] = out_data_tmp.unique_mapped + \
-        out_data_tmp.multi_mapped
-    out_data_tmp.to_csv(out_file, sep='\t')
+    out_data = star_log_out_df.loc[:, STAR_COLUMNS]
+    out_data.columns = ['unique_mapped', 'multi_mapped',
+                        'unique_mapped_rate', 'multi_mapped_rate']
+    out_data.loc[:, 'unique_mapped'] = out_data.unique_mapped.astype('int')
+    out_data.loc[:, 'multi_mapped'] = out_data.multi_mapped.astype('int')
+    out_data.loc[:, 'total_mapped_reads'] = out_data.unique_mapped + \
+        out_data.multi_mapped
+
+    def rm_percent_lab(percent_num):
+        return float(percent_num.rstrip('%'))
+
+    out_data.loc[:, 'unique_mapped_rate'] = out_data.unique_mapped_rate.map(
+        rm_percent_lab)
+    out_data.loc[:, 'multi_mapped_rate'] = out_data.multi_mapped_rate.map(
+        rm_percent_lab)
+    out_data.loc[:, 'total_mapped_rate'] = out_data.unique_mapped_rate + \
+        out_data.multi_mapped_rate
+
+    out_data.to_csv(out_file, sep='\t', float_format='%.2f')
 
 
 if __name__ == '__main__':
