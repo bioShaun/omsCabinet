@@ -1,4 +1,4 @@
-suppressMessages(library(WGCNA))
+suppressMessages(library(WGCNA, quietly=TRUE))
 suppressMessages(library(argparser))
 suppressMessages(library(tibble))
 options(stringsAsFactors = FALSE);
@@ -54,8 +54,8 @@ dev.off()
 scale_fit <- -sign(sft$fitIndices[,3])*sft$fitIndices[,2]
 scale_fit_cut <- c(0.9, 0.85, 0.8)
 
-power_num <- which(scale_fit == max(scale_fit))
-scale_cut <- max(scale_fit)
+power_num <- which(scale_fit == max(scale_fit[2:30]))
+scale_cut <- max(scale_fit[2:30])
 for (each_cut in scale_fit_cut) {
     power_num <- which(scale_fit >= each_cut)[1]
     scale_cut <- each_cut
@@ -76,7 +76,7 @@ dev.off()
 
 
 ## Constructing the gene network and identifying modules 
-net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 20000,
+net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 50000,
                        TOMType = "unsigned", minModuleSize = 30,
                        reassignThreshold = 0, mergeCutHeight = 0.25,
                        numericLabels = TRUE, pamRespectsDendro = FALSE,
