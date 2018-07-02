@@ -64,6 +64,9 @@ for (each_cut in scale_fit_cut) {
     }
 }
 
+print(scale_fit)
+print(paste('power', power_num, scale_fit[power_num], sep=':'))
+
 pdf(paste(out_prefix, 'scale.pdf', sep='.'), width=8, height=8)
 plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
      xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
@@ -117,6 +120,11 @@ nSamples = nrow(datExpr);
 out_samples <- sample_order_v[sample_order_v %in% samples]
 MEs0 = moduleEigengenes(datExpr, mergedColors)$eigengenes
 MEs = orderMEs(MEs0)
+mes_df <- data.frame(MEs)
+row.names(mes_df) <- row.names(datExpr)
+mes_out_df <- rownames_to_column(mes_df, var = 'sample_id')
+write.table(mes_out_df, file=paste(out_prefix, 'eigengenes.txt', sep='.'),
+            quote=F, sep='\t', row.names=F)
 moduleTraitCor = cor(MEs, sample_df, use = "p");
 moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples);
 #moduleTraitPvalue <- moduleTraitPvalue[, out_samples]
