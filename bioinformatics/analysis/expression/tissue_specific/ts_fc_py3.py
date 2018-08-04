@@ -1,12 +1,36 @@
 import pandas as pd
 import os
 import fire
+from pathlib import PurePath, Path
 
 
 CUTOFF = 0.2
 
 
-def mean_exp(matrix, group, outfile=None, cutoff=0):
+def filter_stats(matrix, cut_range=range(1, 11),
+                 out_dir=None, group_file=None):
+    exp_df = pd.read_table(matrix, index_col=0)
+    if group_file is not None:
+        group_df = exp_sample2group(matrix, group_file, by='min')
+    for each_cut in cut_range:
+        if group_file is not None:
+            passed_genes = group_df[group_df.T.max() >= each_cut].index
+            exp_df = exp_df.loc[passed_genes]
+        else:
+            exp_df = exp_df[exp_df.T.max() >= each_cut]
+        gene_num = len(exp_df)
+        print(f'cutoff {each_cut}: {gene_num}')
+        if out_dir is not None:
+            out_dir = Path(out_dir)
+            out_matrix_name = PurePath(
+                matrix).with_suffix(f'.cutoff{each_cut}.txt').name
+            out_matrix = out_dir / out_matrix_name
+            if not out_dir.exists():
+                out_dir.mkdir()
+            exp_df.to_csv(out_matrix, sep='\t')
+
+
+def exp_sample2group(matrix, group, outfile=None, cutoff=0, by='mean'):
     exp_df = pd.read_table(matrix, index_col=0)
     exp_df = exp_df[exp_df.T.max() > cutoff]
     group_df = pd.read_table(group, index_col=1, header=None)
@@ -14,7 +38,7 @@ def mean_exp(matrix, group, outfile=None, cutoff=0):
     group_exp_df = pd.merge(exp_df.T, group_df,
                             left_index=True, right_index=True,
                             how='left')
-    group_mean_exp_df = group_exp_df.groupby('tissue').mean().T
+    group_mean_exp_df = group_exp_df.groupby('tissue').agg(by).T
     group_mean_exp_df.index.name = 'Gene_id'
     if outfile is None:
         return group_mean_exp_df
@@ -32,7 +56,7 @@ def cal_fc_ts(matrix, group, gene_classify,
     tissue_num = len(group_df.tissue.unique())
     ts_score_cutoff = tissue_num * CUTOFF
     # mean_exp_value = group_mean_exp_df.T.mean()
-    group_mean_exp_df = mean_exp(matrix, group, cutoff=cutoff)
+    group_mean_exp_df = exp_sample2group(matrix, group, cutoff=cutoff)
     sum_exp_value = group_mean_exp_df.T.sum()
     max_exp_value = group_mean_exp_df.T.max()
     ts_score = max_exp_value / sum_exp_value
