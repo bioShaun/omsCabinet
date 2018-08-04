@@ -79,7 +79,7 @@ dev.off()
 
 
 ## Constructing the gene network and identifying modules 
-net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 50000,
+net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 55000,
                        TOMType = "unsigned", minModuleSize = 30,
                        reassignThreshold = 0, mergeCutHeight = 0.25,
                        numericLabels = TRUE, pamRespectsDendro = FALSE,
@@ -158,3 +158,10 @@ write.table(moduleTraitCor_out_df,
 write.table(moduleTraitPvalue_out_df,
             file=paste(out_prefix, 'ME.sample.pval.matrix.txt', sep='.'),
             quote=F, sep='\t', row.names=F)
+
+moduleLabels = net$colors
+moduleColors = labels2colors(net$colors)
+MEs = net$MEs;
+geneTree = net$dendrograms[[1]];
+save(MEs, moduleLabels, moduleColors, geneTree,
+     file = paste(out_name,"wgcna.RData",sep='.'))
