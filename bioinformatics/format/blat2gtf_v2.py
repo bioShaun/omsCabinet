@@ -77,7 +77,7 @@ def df2gtf(blat_df, prefix, name, cutoff):
     mask = blat_bed_df.loc[:, 22] > cutoff
     pass_blat_gtfs = get_gtf_lines(blat_bed_df.loc[mask])
     failed_blat_gtfs = get_gtf_lines(blat_bed_df.loc[~mask])
-    blat_gtf_file = '{pre}.{name}.cutoff_{cut}.pass.gtf'.format(
+    blat_gtf_file = '{pre}.{name}.cutoff_{cut}.passed.gtf'.format(
         pre=prefix, cut=cutoff, name=name)
     blat_failed_gtf_file = '{pre}.{name}.cutoff_{cut}.failed.gtf'.format(
         pre=prefix, cut=cutoff, name=name)
