@@ -1,10 +1,16 @@
 import pandas as pd
+import numpy as np
 import os
 import fire
 from pathlib import PurePath, Path
 
 
 CUTOFF = 0.2
+
+
+def min_df_value_except0(exp_df):
+    tmp_df = exp_df.replace({0: np.inf})
+    return tmp_df.min().min()
 
 
 def filter_stats(matrix, cut_range=range(1, 11),
@@ -30,9 +36,35 @@ def filter_stats(matrix, cut_range=range(1, 11),
             exp_df.to_csv(out_matrix, sep='\t')
 
 
+def filter_exp_by_por(matrix, outfile, exp_cutoff, prop_cutoff):
+    exp_df = pd.read_table(matrix, index_col=0)
+    if exp_cutoff == 0:
+        exp_cutoff = min_df_value_except0(exp_df)
+    f_exp_df = exp_df >= exp_cutoff
+    f_exp_prop = f_exp_df.sum(1) / exp_df.shape[1]
+    p_exp_df = exp_df.loc[f_exp_prop >= prop_cutoff]
+    p_exp_df.to_csv(outfile, sep='\t', float_format='%.3f')
+
+
+def gene_group_long_table(matrix, outfile, cutoff=0, group_file=None):
+    if group_file:
+        exp_df = exp_sample2group(matrix, group_file, by='max')
+        exp_df = exp_df.reset_index()
+    else:
+        exp_df = pd.read_table(matrix)
+    if cutoff == 0:
+        cutoff = min_df_value_except0(exp_df)
+    m_exp_df = exp_df.melt(id_vars=exp_df.columns[0],
+                           value_name='tpm', var_name='tissue')
+    m_exp_df = m_exp_df[m_exp_df.tpm >= cutoff]
+    m_exp_df.to_csv(outfile, sep='\t', index=False)
+
+
 def exp_sample2group(matrix, group, outfile=None, cutoff=0, by='mean'):
     exp_df = pd.read_table(matrix, index_col=0)
-    exp_df = exp_df[exp_df.T.max() > cutoff]
+    if cutoff == 0:
+        cutoff = min_df_value_except0(exp_df)
+    exp_df = exp_df[exp_df.T.max() >= cutoff]
     group_df = pd.read_table(group, index_col=1, header=None)
     group_df.columns = ['tissue']
     group_exp_df = pd.merge(exp_df.T, group_df,
