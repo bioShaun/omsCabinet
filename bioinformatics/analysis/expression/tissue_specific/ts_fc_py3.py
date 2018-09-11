@@ -14,16 +14,18 @@ def min_df_value_except0(exp_df):
 
 
 def filter_stats(matrix, cut_range=range(1, 11),
-                 out_dir=None, group_file=None):
+                 out_dir=None, group_file=None,
+                 multi=1):
     exp_df = pd.read_table(matrix, index_col=0)
     if group_file is not None:
         group_df = exp_sample2group(matrix, group_file, by='min')
     for each_cut in cut_range:
+        each_cut = each_cut * multi
         if group_file is not None:
-            passed_genes = group_df[group_df.T.max() >= each_cut].index
+            passed_genes = group_df[group_df.T.max() > each_cut].index
             exp_df = exp_df.loc[passed_genes]
         else:
-            exp_df = exp_df[exp_df.T.max() >= each_cut]
+            exp_df = exp_df[exp_df.T.max() > each_cut]
         gene_num = len(exp_df)
         print(f'cutoff {each_cut}: {gene_num}')
         if out_dir is not None:
@@ -40,9 +42,9 @@ def filter_exp_by_por(matrix, outfile, exp_cutoff, prop_cutoff):
     exp_df = pd.read_table(matrix, index_col=0)
     if exp_cutoff == 0:
         exp_cutoff = min_df_value_except0(exp_df)
-    f_exp_df = exp_df >= exp_cutoff
+    f_exp_df = exp_df > exp_cutoff
     f_exp_prop = f_exp_df.sum(1) / exp_df.shape[1]
-    p_exp_df = exp_df.loc[f_exp_prop >= prop_cutoff]
+    p_exp_df = exp_df.loc[f_exp_prop > prop_cutoff]
     p_exp_df.to_csv(outfile, sep='\t', float_format='%.3f')
 
 
@@ -56,7 +58,7 @@ def gene_group_long_table(matrix, outfile, cutoff=0, group_file=None):
         cutoff = min_df_value_except0(exp_df)
     m_exp_df = exp_df.melt(id_vars=exp_df.columns[0],
                            value_name='tpm', var_name='tissue')
-    m_exp_df = m_exp_df[m_exp_df.tpm >= cutoff]
+    m_exp_df = m_exp_df[m_exp_df.tpm > cutoff]
     m_exp_df.to_csv(outfile, sep='\t', index=False)
 
 
@@ -64,7 +66,7 @@ def exp_sample2group(matrix, group, outfile=None, cutoff=0, by='mean'):
     exp_df = pd.read_table(matrix, index_col=0)
     if cutoff == 0:
         cutoff = min_df_value_except0(exp_df)
-    exp_df = exp_df[exp_df.T.max() >= cutoff]
+    exp_df = exp_df[exp_df.T.max() > cutoff]
     group_df = pd.read_table(group, index_col=1, header=None)
     group_df.columns = ['tissue']
     group_exp_df = pd.merge(exp_df.T, group_df,

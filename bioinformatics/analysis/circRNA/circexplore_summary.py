@@ -1,3 +1,4 @@
+from __future__ import print_function
 from __future__ import division
 import pandas as pd
 import numpy as np
@@ -165,7 +166,7 @@ def circ_flank_intron(circ_df):
                                else np.nan
                                for each in intron_list]
         except IndexError:
-            print intron_list
+            print(intron_list)
             sys.exit(1)
         try:
             intron_size = [int(each[1]) - int(each[0])
@@ -173,7 +174,7 @@ def circ_flank_intron(circ_df):
                            else each
                            for each in intron_cor_list]
         except TypeError:
-            print intron_cor_list
+            print(intron_cor_list)
             sys.exit(1)
         if strand == '-':
             intron_size = intron_size[::-1]
@@ -191,7 +192,7 @@ def circ_flank_intron(circ_df):
         #                                         circ_df.flankIntron,
         #                                         circ_df.strand)
     except ValueError:
-        print len(circ_df.flankIntron), len(circ_df.strand), len(circ_df)
+        print(len(circ_df.flankIntron), len(circ_df.strand), len(circ_df))
         sys.exit(1)
     return circ_df
     # circ_df.loc[:, 'flankIntronSizeUP'] = [each[0] for each
