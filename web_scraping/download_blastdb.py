@@ -38,6 +38,10 @@ async def get_inf(host, name=None, retry_lim=1):
                     return file_list
             except concurrent.futures._base.TimeoutError:
                 retry_num += 1
+            except aioftp.errors.StatusCodeError:
+                retry_num += 1
+            except ConnectionResetError:
+                retry_num += 1
         return None
 
 
@@ -77,30 +81,47 @@ async def get_file(host, path, out_dir=CURRENT_DIR, retry_lim=2):
         return False
 
 
+@asyncio.coroutine
+def get_db_inf(msg='Fetching FTP information!',
+               db=None):
+    spinner = asyncio.async(spin(msg))
+    file_list = yield from get_inf(HOST, name=db)
+    spinner.cancel()
+    return file_list
+
+
+def lost_connection(host):
+    print('Failed to connect to the FTP host.')
+    print(f'Please check host IP [{host}] and try again!')
+    sys.exit(1)
+
+
 def download_ncbi_blastdb(database,
                           out_dir=CURRENT_DIR,
                           test=False):
-
     loop = asyncio.get_event_loop()
-    inf_tasks = [
-        get_inf(HOST, database)
-    ]
-    file_list = loop.run_until_complete(asyncio.wait(inf_tasks))
-    print(file_list)
-    print(file_list.result)
-    loop.close()
-    # download_tasks = [
-    #     get_file(HOST, each_path) for each_path
-    #     in file_list]
-    # download_status = loop.run_until_complete(asyncio.wait(download_tasks))
-    # loop.close()
+    db_msg = f'Fetching dababase [{database}] files.'
+    file_list = loop.run_until_complete(get_db_inf(db_msg, db=database))
 
-    # total_works = len(download_status)
-    # success_works = sum(download_status)
-    # failed_works = total_works - success_works
-    # print(f'{total_works} files to be downloaded.')
-    # print(f'{success_works} success.')
-    # print(f'{failed_works} failed.')
+    if file_list is None:
+        lost_connection(HOST)
+
+    # for test
+    file_list = [each for each in file_list
+                 if each.suffix == '.md5']
+    print(file_list)
+
+    download_tasks = [
+        get_file(HOST, each_path) for each_path
+        in file_list]
+    download_status, _ = loop.run_until_complete(asyncio.wait(download_tasks))
+    loop.close()
+    total_works = len(download_status)
+    success_works = sum([each.result() for each in download_status])
+    failed_works = total_works - success_works
+    print(f'{total_works} files to be downloaded.')
+    print(f'{success_works} success.')
+    print(f'{failed_works} failed.')
 
 
 @asyncio.coroutine
@@ -119,21 +140,11 @@ def spin(msg):
 
 
 def list_db():
-
-    @asyncio.coroutine
-    def get_db_inf(msg='Fetching FTP information!'):
-        spinner = asyncio.async(spin(msg))
-        file_list = yield from get_inf(HOST)
-        spinner.cancel()
-        return file_list
-
     loop = asyncio.get_event_loop()
     file_list = loop.run_until_complete(get_db_inf())
     loop.close()
     if file_list is None:
-        print('Failed to connect to the FTP host.')
-        print(f'Please check host IP [{HOST}] and try again!')
-        sys.exit(1)
+        lost_connection(HOST)
     file_set = {each_path.stem.split('.')[0] for
                 each_path in file_list}
     file_list = sorted(list(file_set))
