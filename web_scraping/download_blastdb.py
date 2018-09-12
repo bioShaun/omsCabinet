@@ -41,9 +41,15 @@ CURRENT_DIR = pathlib.Path().cwd()
 HOST = "ftp.ncbi.nlm.nih.gov"
 
 
-async def get_inf(host, name=None, retry_lim=1, logger=DEFAULT_LOGGER):
+async def get_inf(host, name=None,
+                  retry_lim=1,
+                  logger=DEFAULT_LOGGER):
     file_list = []
     retry_num = 0
+    out_name = name
+    # name is None means to retrieve all files of blastdb
+    if name is None:
+        out_name = 'NCBI Blast Database'
     with (await SEMA):
         while retry_num <= retry_lim:
             try:
@@ -51,21 +57,21 @@ async def get_inf(host, name=None, retry_lim=1, logger=DEFAULT_LOGGER):
                         host, socket_timeout=10) as client:
                     path = '/blast/db/'
                     logger.info(
-                        f'Retriving blastdb files. Try {retry_num + 1} time.')
+                        f'Retriving blastdb files. Try {retry_num + 1}.')
                     for path, info in (await client.list(path)):
                         if info['type'] == 'file' and (path.suffix == '.gz' or
                                                        path.suffix == '.md5'):
                             if name is None:
                                 name = '.*'
                             pattern = re.compile(
-                                '{pref}.(\w+).tar.gz.*'.format(
+                                '{pref}\.*.tar.gz.*'.format(
                                     pref=name
                                 ))
                             if pattern.match(path.name):
                                 file_list.append(path)
                     file_number = len(file_list)
                     logger.info(
-                        f'Total {file_number} files for [{name}] database.')
+                        f'Total {file_number} files for [{out_name}] database.')
                     return file_list
             except concurrent.futures._base.TimeoutError:
                 retry_num += 1
@@ -73,6 +79,8 @@ async def get_inf(host, name=None, retry_lim=1, logger=DEFAULT_LOGGER):
                 retry_num += 1
             except ConnectionResetError:
                 retry_num += 1
+        logger.error('Failed to connect to the FTP host.')
+        logger.error(f'Please check host IP [{host}] and try again!')
         return None
 
 
@@ -96,7 +104,7 @@ async def get_file(host, path, out_dir=CURRENT_DIR,
                         outfile_stat = pathlib.Path(outfile).stat()
                         outfile_size = outfile_stat.st_size
                         if outfile_size != size:
-                            logger.info(f'{file_name} is Downloading.')
+                            logger.info(f'|Downloading...| {file_name}')
                             file_out = gzip.open(outfile, 'ab')
                             async with client.download_stream(
                                     path, offset=outfile_size) as stream:
@@ -105,67 +113,21 @@ async def get_file(host, path, out_dir=CURRENT_DIR,
                         else:
                             pass
                     else:
-                        logger.info(f'{file_name} is Downloading.')
+                        logger.info(f'|Downloading...| {file_name}')
                         await client.download(path, outfile, write_into=True)
-                    logger.info(f'{file_name} is Downloaded.')
+                    logger.info(f'|Downloaded| {file_name}')
                     return True
             except TimeoutError:
                 retry_times += 1
-        logger.error(f'{file_name} download is failed.')
+        logger.error(f'|Failed!| {file_name}')
         return False
 
 
 @asyncio.coroutine
-def get_db_inf(msg='Fetching FTP information!',
-               db=None):
-    spinner = asyncio.async(spin(msg))
-    file_list = yield from get_inf(HOST, name=db)
-    spinner.cancel()
-    return file_list
-
-
-def lost_connection(host):
-    print('Failed to connect to the FTP host.')
-    print(f'Please check host IP [{host}] and try again!')
-    sys.exit(1)
-
-
-def download_ncbi_blastdb(database,
-                          out_dir=CURRENT_DIR,
-                          test=False):
-
-    logger_file = pathlib.PurePath(out_dir) / 'download.log.txt'
-    dl_logger = init_logger(log_name='download_ncbi_blastdb',
-                            log_file=logger_file)
-
-    loop = asyncio.get_event_loop()
-    db_msg = f'Fetching dababase [{database}] files.'
-    file_list = loop.run_until_complete(get_db_inf(db_msg, db=database))
-
-    if file_list is None:
-        lost_connection(HOST)
-
-    # for test
-    file_list = [each for each in file_list
-                 if each.suffix == '.md5']
-
-    download_tasks = [
-        get_file(HOST, path=each_path, logger=dl_logger) for each_path
-        in file_list]
-    download_status, _ = loop.run_until_complete(asyncio.wait(download_tasks))
-    loop.close()
-    total_works = len(download_status)
-    success_works = sum([each.result() for each in download_status])
-    failed_works = total_works - success_works
-    dl_logger.info(f'{total_works} files to be downloaded.')
-    dl_logger.info(f'{success_works} success.')
-    dl_logger.info(f'{failed_works} failed.')
-    if failed_works:
-        dl_logger.info('Check log file for failed files.')
-
-
-@asyncio.coroutine
 def spin(msg):
+    '''
+    show a spinning line
+    '''
     write, flush = sys.stdout.write, sys.stdout.flush
     for char in itertools.cycle('|/-\\'):
         status = char + ' ' + msg
@@ -179,12 +141,64 @@ def spin(msg):
     write(' ' * len(status) + '\x08' * len(status))
 
 
+@asyncio.coroutine
+def get_db_inf(msg='Fetching FTP information!',
+               show_spin=True,
+               db=None):
+    # when downloading, don not show spinning line
+    if show_spin:
+        spinner = asyncio.async(spin(msg))
+        file_list = yield from get_inf(HOST, name=db)
+        spinner.cancel()
+    else:
+        file_list = yield from get_inf(HOST, name=db)
+    return file_list
+
+
+def download_ncbi_blastdb(database,
+                          out_dir=CURRENT_DIR,
+                          test=False):
+
+    logger_file = pathlib.PurePath(out_dir) / 'download.log.txt'
+    dl_logger = init_logger(log_name='download_ncbi_blastdb',
+                            log_file=logger_file)
+
+    loop = asyncio.get_event_loop()
+    db_msg = f'Fetching dababase [{database}] files.'
+    file_list = loop.run_until_complete(
+        get_db_inf(db_msg,
+                   db=database,
+                   show_spin=False))
+
+    if file_list is None:
+        return
+
+    if test:
+        for each_file in file_list:
+            print(each_file)
+    else:
+        download_tasks = [
+            get_file(HOST, path=each_path, logger=dl_logger) for each_path
+            in file_list]
+        download_status, _ = loop.run_until_complete(
+            asyncio.wait(download_tasks))
+        loop.close()
+        total_works = len(download_status)
+        success_works = sum([each.result() for each in download_status])
+        failed_works = total_works - success_works
+        dl_logger.info(f'{total_works} files to be downloaded.')
+        dl_logger.info(f'{success_works} success.')
+        dl_logger.info(f'{failed_works} failed.')
+        if failed_works:
+            dl_logger.info('Check log file for failed files.')
+
+
 def list_db():
     loop = asyncio.get_event_loop()
     file_list = loop.run_until_complete(get_db_inf())
     loop.close()
     if file_list is None:
-        lost_connection(HOST)
+        return
     file_set = {each_path.stem.split('.')[0] for
                 each_path in file_list}
     file_list = sorted(list(file_set))
