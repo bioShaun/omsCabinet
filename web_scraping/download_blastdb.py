@@ -9,6 +9,8 @@ import pandas as pd
 import gzip
 import concurrent
 import logging
+from tabulate import tabulate
+from collections import Counter
 
 
 def init_logger(log_name=None, log_file=None, level=logging.INFO,
@@ -64,7 +66,7 @@ async def get_inf(host, name=None,
                             if name is None:
                                 name = '.*'
                             pattern = re.compile(
-                                '{pref}\.*.tar.gz.*'.format(
+                                '{pref}\..*tar.gz.*'.format(
                                     pref=name
                                 ))
                             if pattern.match(path.name):
@@ -103,21 +105,28 @@ async def get_file(host, path, out_dir=CURRENT_DIR,
                     if pathlib.Path(outfile).exists():
                         outfile_stat = pathlib.Path(outfile).stat()
                         outfile_size = outfile_stat.st_size
-                        if outfile_size != size:
-                            logger.info(f'|Downloading...| {file_name}')
-                            file_out = gzip.open(outfile, 'ab')
-                            async with client.download_stream(
-                                    path, offset=outfile_size) as stream:
-                                file_out.write(stream)
-                            file_out.close()
-                        else:
-                            pass
                     else:
+                        outfile_size = 0
+                    if outfile_size != size:
                         logger.info(f'|Downloading...| {file_name}')
-                        await client.download(path, outfile, write_into=True)
+                        file_out = open(outfile, 'ab')
+                        async with client.download_stream(
+                                path, offset=outfile_size) as stream:
+                            async for block in stream.iter_by_block():
+                                file_out.write(block)
+                        stream.close()
+                        file_out.close()
+                    else:
+                        pass
                     logger.info(f'|Downloaded| {file_name}')
                     return True
             except TimeoutError:
+                retry_times += 1
+            except concurrent.futures._base.TimeoutError:
+                retry_times += 1
+            except aioftp.errors.StatusCodeError:
+                retry_times += 1
+            except ConnectionResetError:
                 retry_times += 1
         logger.error(f'|Failed!| {file_name}')
         return False
@@ -155,6 +164,18 @@ def get_db_inf(msg='Fetching FTP information!',
     return file_list
 
 
+def file_counter(file_list, file_suffix, file_label):
+    db_file_list = [each_path.stem.split('.')[0] for
+                    each_path in file_list
+                    if each_path.suffix == file_suffix]
+    db_file_count = Counter(db_file_list)
+    db_file_dict = {}
+    db_file_dict['NCBI_Blast_Database'] = list(db_file_count.keys())
+    db_file_dict[file_label] = list(db_file_count.values())
+    db_file_df = pd.DataFrame(db_file_dict)
+    return db_file_df.loc[:, ['NCBI_Blast_Database', file_label]]
+
+
 def download_ncbi_blastdb(database,
                           out_dir=CURRENT_DIR,
                           test=False):
@@ -176,6 +197,7 @@ def download_ncbi_blastdb(database,
     if test:
         for each_file in file_list:
             print(each_file)
+        loop.close()
     else:
         download_tasks = [
             get_file(HOST, path=each_path, logger=dl_logger) for each_path
@@ -199,17 +221,19 @@ def list_db():
     loop.close()
     if file_list is None:
         return
-    file_set = {each_path.stem.split('.')[0] for
-                each_path in file_list}
-    file_list = sorted(list(file_set))
-    db_title = 'NCBI Blast database'
-    print('=' * 30)
-    print(f'|{db_title:^28}|')
-    print('=' * 30)
-    for each_db in file_list:
-        print(f'|{each_db:^28}|')
-    print('=' * 30)
+    db_file_list = [each_path.stem.split('.')[0] for
+                    each_path in file_list
+                    if each_path.suffix == '.gz']
+    db_file_num = file_counter(file_list, '.gz', 'DB_File_Number')
+    db_md5_num = file_counter(file_list, '.gz', 'DB_MD5_Number')
+    total_db_files = db_file_num.merge(db_md5_num)
+    total_db_files = total_db_files.sort_values(['NCBI_Blast_Database'])
+    total_db_files.index = list(range(len(total_db_files)))
+    print(tabulate(total_db_files, headers='keys', tablefmt='psql'))
 
 
 if __name__ == '__main__':
-    fire.Fire()
+    fire.Fire({
+        'list_db': list_db,
+        'download_ncbi_blastdb': download_ncbi_blastdb,
+    })
