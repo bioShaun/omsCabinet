@@ -2,16 +2,33 @@
 
 import sys
 import urllib
+import urllib3
 import requests
 import time
 
 
+GENE_SERVERS_DICT = {
+    'http://rest.ensembl.org': 'Ensembl',
+    'https://rest.ensemblgenomes.org': 'EnsemblPlants'
+}
+
+
+def get_db(species):
+    for each_server in GENE_SERVERS_DICT:
+        ext = f"/info/assembly/{species}?"
+        r = requests.get(
+            each_server+ext, headers={"Content-Type": "application/json"})
+        if r.ok:
+            return GENE_SERVERS_DICT[each_server]
+    sys.exit(f'{species} not found in Ensembl.')
+
+
 class EnsemblRestClient(object):
     def __init__(self, server='http://rest.ensembl.org', reqs_per_sec=15):
-        self.server = server
         self.reqs_per_sec = reqs_per_sec
         self.req_count = 0
         self.last_req = 0
+        self.server = server
 
     def perform_rest_action(self, endpoint, hdrs=None, params=None):
         if hdrs is None:
@@ -97,6 +114,21 @@ class EnsemblRestClient(object):
 
 
 class UniprotClient(object):
+    '''
+    class to use EMBL-EBI API to download protein & go annotation
+
+    >>> client = UniprotClient()
+
+    test download go annotation
+    >>> go_anno_obj = client.get_go_anno('GO:0008150')
+    >>> go_anno_obj['results'][0]['id'] == 'GO:0008150'
+    True
+    >>> go_anno_obj['results'][0]['name'] == 'biological_process'
+    True
+    >>> go_anno_obj['results'][0]['aspect'] == 'biological_process'
+    True
+    '''
+
     def __init__(self, server='https://www.ebi.ac.uk', reqs_per_sec=15):
         self.server = server
         self.reqs_per_sec = reqs_per_sec
@@ -111,7 +143,9 @@ class UniprotClient(object):
             hdrs['Accept'] = 'application/json'
 
         if params:
-            endpoint += '?' + urllib.parse.urlencode(params)
+            url = endpoint + '?' + urllib.parse.urlencode(params)
+        else:
+            url = endpoint
 
         data = None
 
@@ -125,7 +159,7 @@ class UniprotClient(object):
 
         requests.adapters.DEFAULT_RETRIES = 5
         try:
-            request = requests.get(self.server + endpoint, headers=hdrs)
+            request = requests.get(self.server + url, headers=hdrs)
             if request.ok:
                 if hdrs['Accept'] == 'application/json':
                     data = request.json()
@@ -135,7 +169,7 @@ class UniprotClient(object):
                 request.raise_for_status()
             self.req_count += 1
 
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as e:
             # check if we are being rate limited by the server
             if request.status_code == 429:
                 if 'Retry-After' in request.headers:
@@ -144,9 +178,24 @@ class UniprotClient(object):
                     self.perform_rest_action(endpoint, hdrs, params)
             else:
                 sys.stderr.write(
-                    'Request failed for {0}: Status code: {1.code} Reason: {1.reason}\n'.format(endpoint, e))
+                    'Request failed for {0}: Status code: {1.status_code}.\n'.format(endpoint, request))
+
+        except BlockingIOError as e:
+            time.sleep(5)
+            self.perform_rest_action(endpoint, hdrs, params)
+
+        except OSError as e:
+            time.sleep(5)
+            self.perform_rest_action(endpoint, hdrs, params)
 
         return data
+
+    def get_gene_inf(self, gene_id):
+        gene_obj = self.perform_rest_action(
+            f'/proteins/api/proteins/{gene_id}',
+            params={'size': -1}
+        )
+        return gene_obj
 
     def get_protein_inf(self, uniprot_id):
         prot_obj = self.perform_rest_action(
@@ -162,6 +211,13 @@ class UniprotClient(object):
                     'page': page}
         )
         return go_obj
+
+    def get_go_anno(self, go_id):
+        go_anno = self.perform_rest_action(
+            '/QuickGO/services/ontology/go/search',
+            params={'query': go_id}
+        )
+        return go_anno
 
 
 def run(species, symbol):

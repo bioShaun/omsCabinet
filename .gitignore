@@ -102,3 +102,7 @@ ENV/
 
 # emacs tmp
 *~
+*#
+
+# test data
+test_data
