@@ -1,5 +1,5 @@
 import fire
-from rest_api import UniprotClient, get_db
+from rest_api_asyncio import UniprotClient, get_db
 import pandas as pd
 from pandas import DataFrame
 import gtfparse
@@ -10,6 +10,7 @@ from functools import reduce
 import glob
 import sys
 import urllib3
+import asyncio
 
 
 OUT_HEADER_BASE = [
@@ -30,6 +31,10 @@ OUT_HEADER_REF = [
     'feature_dbs',
     'pubmed_ids'
 ]
+
+
+DEFAULT_CONCUR_REQ = 10
+DEFAULT_RETRY_TIMES = 2
 
 
 def format_df(gene_df, sep=',', empty_rep=None, by='gene_id'):
@@ -68,46 +73,6 @@ def save_download_to_dir(df, middle_file_dir, file_id):
     middle_file_dir.mkdir(parents=True, exist_ok=True)
     middle_file = middle_file_dir / f'{file_id}.txt'
     df.to_csv(middle_file, index=False, sep='\t')
-
-
-def uniprot_go_map(uniprot_id, middle_file, client,
-                   skip=False):
-    '''
-    function to download go ids using uniport id
-    '''
-    decoded_list = []
-
-    def download_page_inf(uniprot_id, page=1):
-        nonlocal client
-        nonlocal decoded_list
-        decoded = client.get_go_inf(uniprot_id, page=page)
-        decoded_list.append(decoded)
-        if decoded is None:
-            return None
-        total_page = decoded['pageInfo']['total']
-        cur_page = decoded['pageInfo']['current']
-        if cur_page < total_page:
-            return download_page_inf(uniprot_id, cur_page + 1)
-
-    download_page_inf(uniprot_id)
-    total_goids = []
-    for decoded in decoded_list:
-        if decoded is None:
-            if not skip:
-                return None
-            else:
-                continue
-        if 'results' in decoded:
-            go_ids = [each['goId'] for each in decoded['results']
-                      if 'goId' in each]
-            total_goids.extend(go_ids)
-    if total_goids:
-        go_df = DataFrame(total_goids, columns=['go_id'])
-    else:
-        go_df = DataFrame([None], columns=['go_id'])
-    go_df.loc[:, 'uniprot_id'] = uniprot_id
-    save_download(go_df, middle_file)
-    return go_df
 
 
 def idlist2df(id_list, col_name, identity_map=None):
@@ -238,8 +203,9 @@ def extract_anno_inf(decoded, uniprot_id, middle_file):
     return anno_df
 
 
-def go_anno_map(go_id, middle_file, client, skip):
-    decoded = client.get_go_anno(go_id)
+async def go_anno_map(go_id, middle_file, client, semaphore, skip):
+    with await semaphore:
+        decoded = await client.get_go_anno(go_id)
     go_df = DataFrame([go_id, None, None],
                       index=['go_id', 'go_term', 'go_ontology']).T
     if decoded is None:
@@ -257,8 +223,51 @@ def go_anno_map(go_id, middle_file, client, skip):
     return go_df
 
 
-def uniprot_anno_map(uniprot_id, middle_file, client, skip=False):
-    decoded = client.get_protein_inf(uniprot_id)
+async def uniprot_go_map(uniprot_id, middle_file, client,
+                         semaphore, skip=False):
+    '''
+    function to download go ids using uniport id
+    '''
+    decoded_list = []
+
+    async def download_page_inf(uniprot_id, semaphore, page=1):
+        nonlocal client
+        nonlocal decoded_list
+        with await semaphore:
+            decoded = await client.get_go_inf(uniprot_id, page=page)
+        decoded_list.append(decoded)
+        if decoded is None:
+            return None
+        total_page = decoded['pageInfo']['total']
+        cur_page = decoded['pageInfo']['current']
+        if cur_page < total_page:
+            return await download_page_inf(uniprot_id, semaphore, cur_page + 1)
+
+    await download_page_inf(uniprot_id, semaphore)
+    total_goids = []
+    for decoded in decoded_list:
+        if decoded is None:
+            if not skip:
+                return None
+            else:
+                continue
+        if 'results' in decoded:
+            go_ids = [each['goId'] for each in decoded['results']
+                      if 'goId' in each]
+            total_goids.extend(go_ids)
+    if total_goids:
+        go_df = DataFrame(total_goids, columns=['go_id'])
+    else:
+        go_df = DataFrame([None], columns=['go_id'])
+    go_df.loc[:, 'uniprot_id'] = uniprot_id
+    save_download(go_df, middle_file)
+    return go_df
+
+
+async def uniprot_anno_map(uniprot_id, middle_file, client,
+                           semaphore, skip=False):
+    with await semaphore:
+        decoded = await client.get_protein_inf(uniprot_id)
     if decoded is None:
         if not skip:
             return None
@@ -270,9 +279,10 @@ def uniprot_anno_map(uniprot_id, middle_file, client, skip=False):
     return anno_df
 
 
-def ens_anno_map(ensembl_id, middle_file, client,
-                 skip=False):
-    decodeds = client.get_gene_inf(ensembl_id)
+async def ens_anno_map(ensembl_id, middle_file, client,
+                       semaphore, skip=False):
+    with await semaphore:
+        decodeds = await client.get_gene_inf(ensembl_id)
     anno_dfs = list()
     if decodeds is not None:
         for decoded in decodeds:
@@ -294,10 +304,13 @@ def ens_anno_map(ensembl_id, middle_file, client,
     return anno_df
 
 
-def map2df(map_func, query_ids, msg,
-           middle_file, id_col_name='uniprot_id',
-           retry_limits=2, skip=False):
+async def map2df(map_func, query_ids, msg,
+                 middle_file, concur_req,
+                 retry_limits,
+                 id_col_name='uniprot_id',
+                 skip=False):
     client = UniprotClient()
+    semaphore = asyncio.Semaphore(concur_req)
     if middle_file.exists():
         if middle_file.is_file():
             finished_df = pd.read_table(middle_file)
@@ -316,32 +329,57 @@ def map2df(map_func, query_ids, msg,
 
     map_dfs = list()
     download_fail = 0
-    for each_id in tqdm(left_ids,
-                        ncols=100,
-                        desc=f'{msg:<40}'):
-        each_df = map_func(each_id, middle_file, client, skip)
-        if each_df is None:
-            download_fail += 1
+    to_do = [map_func(each_id, middle_file, client, semaphore, skip)
+             for each_id in left_ids]
+    to_do_iter = asyncio.as_completed(to_do)
+    to_do_iter = tqdm(to_do_iter, total=len(left_ids),
+                      ncols=100, desc=f'{msg:<40}')
+    for future in to_do_iter:
+        try:
+            each_df = await future
+        except FetchError as exc:
+            country_code = exc.country_code
+            try:
+                error_msg = exc.__cause__.args[0]
+            except IndexError:
+                error_msg = exc.__cause__.__class__.__name__
+                msg = '*** Error for {}: {}'
+                print(msg.format(country_code, error_msg))
+                download_fail += 1
         else:
-            map_dfs.append(each_df)
+            if each_df is None:
+                download_fail += 1
+            else:
+                map_dfs.append(each_df)
     if download_fail > 0 and retry_limits > 0:
         print(f'{download_fail} items failed to download.')
         print(f'last {retry_limits} try!')
         retry_limits = retry_limits - 1
-        if retry_limits > 1:
-            return(map2df(map_func, query_ids, msg,
-                          middle_file, id_col_name,
-                          retry_limits, skip))
-        elif retry_limits == 1:
-            return(map2df(map_func, query_ids, msg,
-                          middle_file, id_col_name,
-                          retry_limits, skip=True))
+        if retry_limits == 1:
+            skip = True
+        return await map2df(map_func, query_ids, msg,
+                            middle_file, concur_req,
+                            retry_limits,
+                            id_col_name=id_col_name,
+                            skip=skip)
     if map_dfs:
         map_df = pd.concat(map_dfs, sort=False)
         map_df = pd.concat([finished_df, map_df], sort=False)
     else:
         map_df = finished_df
     return map_df
+
+
+def map2df_summary(map_func, query_ids, msg,
+                   middle_file, concur_req,
+                   retry_limits, loop,
+                   id_col_name='uniprot_id'):
+    coro = map2df(map_func, query_ids, msg,
+                  middle_file, concur_req,
+                  retry_limits,
+                  id_col_name=id_col_name)
+    df = loop.run_until_complete(coro)
+    return df
 
 
 def swissprot_id_from_fa(fa_id):
@@ -363,11 +401,15 @@ def format_uniprot_anno(ens_anno_df, anno_file):
                        na_rep='--', index=False)
 
 
-def go_annotation(input_file, species=None):
+def go_annotation(input_file, species=None, workers=DEFAULT_CONCUR_REQ,
+                  retry=DEFAULT_RETRY_TIMES):
     input_file = Path(input_file)
     anno_file = input_file.with_suffix('.anno.txt')
     gene_list_file = input_file.with_suffix('.pcg.gene.list')
+    ens_uni_map_file = input_file.with_suffix('.uni_id.map')
     ens_anno_map_df = None
+    loop = asyncio.get_event_loop()
+
     if input_file.suffix == '.gtf':
         # need species info to choose ensembl sever
         if species is None:
@@ -388,12 +430,12 @@ def go_annotation(input_file, species=None):
                           columns=['gene_id'], header=False)
             gtf_genes = set(gtf_df.gene_id.unique())
         gtf_genes = [f'{ens_db}:{each}' for each in gtf_genes]
-        ens_uni_map_file = input_file.with_suffix('.uni_id.map')
         # ensembl to uniprot annotation
         map_gene_id_msg = 'Mapping ensembl id <-> uniprot annotation'
-        ens_anno_df = map2df(ens_anno_map, gtf_genes,
-                             map_gene_id_msg, ens_uni_map_file,
-                             id_col_name='gene_id')
+        ens_anno_df = map2df_summary(ens_anno_map, gtf_genes,
+                                     map_gene_id_msg, ens_uni_map_file,
+                                     workers, retry, loop,
+                                     id_col_name='gene_id')
         ens_anno_df.loc[:, 'gene_id'] = ens_anno_df.gene_id.map(rm_db_name)
         ens_uni_map_df = ens_anno_df.loc[
             :, ['gene_id', 'uniprot_id']].dropna()
@@ -407,20 +449,23 @@ def go_annotation(input_file, species=None):
         # uniprot to annotation
         uni_anno_map_msg = 'Retriving UniProt annotation'
         uni_anno_map_file = input_file.with_suffix('.uni_anno.map')
-        uni_anno_map_df = map2df(uniprot_anno_map,
-                                 ens_uni_map_df.uniprot_id.unique(),
-                                 uni_anno_map_msg,
-                                 uni_anno_map_file)
+        uni_anno_map_df = map2df_summary(uniprot_anno_map,
+                                         ens_uni_map_df.uniprot_id.unique(),
+                                         uni_anno_map_msg,
+                                         ens_uni_map_file,
+                                         workers, retry,
+                                         loop)
         ens_anno_df = ens_uni_map_df.merge(
             uni_anno_map_df)
     # uniprot to go
     go_file = input_file.with_suffix('.go.txt')
     map_uni_to_go_msg = 'Retriving GO ids'
     uni_go_map_file = input_file.with_suffix('.uni_go.map')
-    uni_go_map_df = map2df(uniprot_go_map,
-                           ens_uni_map_df.uniprot_id.unique(),
-                           map_uni_to_go_msg,
-                           uni_go_map_file)
+    uni_go_map_df = map2df_summary(uniprot_go_map,
+                                   ens_uni_map_df.uniprot_id.unique(),
+                                   map_uni_to_go_msg,
+                                   uni_go_map_file,
+                                   workers, retry, loop)
     if not go_file.exists():
         uni_go_map_df.dropna(inplace=True)
         ens_go_df = ens_uni_map_df.merge(
@@ -428,18 +473,20 @@ def go_annotation(input_file, species=None):
         # format go result
         formated_go = format_df(ens_go_df)
         formated_go.to_csv(go_file, sep='\t',
-                           header=False)
+                           header=False, index=False)
     go_anno_map_file = input_file.with_suffix('.go_anno.map')
     map_go_to_anno_msg = 'Retriving GO information'
-    go_anno_map_df = map2df(go_anno_map,
-                            uni_go_map_df.go_id.unique(),
-                            map_go_to_anno_msg,
-                            go_anno_map_file,
-                            id_col_name='go_id')
+    go_anno_map_df = map2df_summary(go_anno_map,
+                                    uni_go_map_df.go_id.unique(),
+                                    map_go_to_anno_msg,
+                                    go_anno_map_file,
+                                    workers, retry, loop,
+                                    id_col_name='go_id')
     go_anno_map_df = go_anno_map_df.merge(uni_go_map_df)
     ens_anno_df = ens_anno_df.merge(go_anno_map_df)
     ens_anno_df = format_df(ens_anno_df, empty_rep='--', sep='|')
     format_uniprot_anno(ens_anno_df, anno_file)
+    loop.close()
 
 
 if __name__ == '__main__':
