@@ -19,7 +19,7 @@ def get_db(species):
     for each_server in GENE_SERVERS_DICT:
         ext = f"/info/assembly/{species}?"
         r = requests.get(
-            each_server+ext, headers={"Content-Type": "application/json"})
+            each_server + ext, headers={"Content-Type": "application/json"})
         if r.ok:
             return GENE_SERVERS_DICT[each_server]
     sys.exit(f'{species} not found in Ensembl.')
@@ -131,7 +131,7 @@ class UniprotClient(object):
     True
     '''
 
-    def __init__(self, server='https://www.ebi.ac.uk', reqs_per_sec=5):
+    def __init__(self, server='https://www.ebi.ac.uk', reqs_per_sec=15):
         self.server = server
         self.reqs_per_sec = reqs_per_sec
         self.req_count = 0
@@ -155,7 +155,7 @@ class UniprotClient(object):
         if self.req_count >= self.reqs_per_sec:
             delta = time.time() - self.last_req
             if delta < 1:
-                time.sleep(1 - delta)
+                await asyncio.sleep(1 - delta)
             self.last_req = time.time()
             self.req_count = 0
 
@@ -177,7 +177,10 @@ class UniprotClient(object):
                     else:
                         request.raise_for_status()
                     self.req_count += 1
-        except aiohttp.client_exceptions.ClientConnectorError as exc:
+        except (aiohttp.client_exceptions.ClientConnectorError,
+                asyncio.TimeoutError,
+                aiohttp.client_exceptions.ServerDisconnectedError,
+                aiohttp.client_exceptions.InvalidURL) as exc:
             try:
                 code = exc.code
             except AttributeError:
