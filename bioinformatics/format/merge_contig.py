@@ -87,4 +87,5 @@ def merge_contig(genome_fa, congtig_list, n_sep=100,
 
 
 if __name__ == '__main__':
-    fire.Fire(merge_contig)
+    fire.Fire({'merge_contig': merge_contig,
+               'merge_contig_gtf': merge_contig_gtf})
