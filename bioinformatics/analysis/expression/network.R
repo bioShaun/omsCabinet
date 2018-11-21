@@ -1,6 +1,7 @@
 suppressMessages(library(WGCNA, quietly=TRUE))
 suppressMessages(library(argparser))
 suppressMessages(library(tibble))
+suppressMessages(library(ggdendro))
 options(stringsAsFactors = FALSE);
 enableWGCNAThreads()
 
@@ -9,7 +10,6 @@ p <- arg_parser("perform WGCNA analysis")
 p <- add_argument(p, '--exp_table', help = 'normalized expression table.')
 p <- add_argument(p, '--out_dir', help = 'output directory.')
 p <- add_argument(p, '--name', help = 'output name.')
-p <- add_argument(p, '--sample_order', help = 'plot sample order file.')
 argv <- parse_args(p)
 
 ## get parameter
@@ -23,20 +23,31 @@ if (! dir.exists(out_dir)) {
     dir.create(out_dir)
 }
 
-## read sample info
-sample_order_df <- read.delim(sample_order, header=F)
-sample_order_v <- sample_order_df$V1
+# get sample order by cluster order
+cal_dendro <- function(exp_df) {
+  data.mat <- as.matrix(exp_df)
+  sample_cor = cor(data.mat, method='pearson', use='pairwise.complete.obs')
+  sample_dist = as.dist(1-sample_cor)
+  sample_dist = sample_dist *100
+  fit_hc <- hclust(sample_dist)
+  dendr <- dendro_data(fit_hc,type="rectangle")
+  text.df <- label(dendr)
+  return(text.df)
+}
+
 
 ## Choose a set of soft-thresholding powers
 powers = c(1:30)
 
 ## Call the network topology analysis function
 myData <- read.delim(exp_table, check.names = F, row.names=1)
-samples <- colnames(myData)
-out_samples <- sample_order_v[sample_order_v %in% samples]
-myData <- myData[, out_samples]
-
 mylogData <- log2(myData + 1)
+samples <- colnames(myData)
+cluster_df <- cal_dendro(mylogData)
+sample_order_v <- cluster_df$label
+out_samples <- sample_order_v[sample_order_v %in% samples]
+mylogData <- mylogData[, out_samples]
+
 datExpr <- as.data.frame(t(mylogData));
 
 sft = pickSoftThreshold(datExpr, powerVector = powers, verbose = 5)
@@ -52,7 +63,7 @@ text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
 dev.off()
 
 scale_fit <- -sign(sft$fitIndices[,3])*sft$fitIndices[,2]
-scale_fit_cut <- c(0.9, 0.85, 0.8)
+scale_fit_cut <- c(0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6)
 
 power_num <- which(scale_fit == max(scale_fit[2:30]))
 scale_cut <- max(scale_fit[2:30])
@@ -79,7 +90,7 @@ dev.off()
 
 
 ## Constructing the gene network and identifying modules 
-net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 50000,
+net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 55000,
                        TOMType = "unsigned", minModuleSize = 30,
                        reassignThreshold = 0, mergeCutHeight = 0.25,
                        numericLabels = TRUE, pamRespectsDendro = FALSE,
@@ -158,3 +169,10 @@ write.table(moduleTraitCor_out_df,
 write.table(moduleTraitPvalue_out_df,
             file=paste(out_prefix, 'ME.sample.pval.matrix.txt', sep='.'),
             quote=F, sep='\t', row.names=F)
+
+moduleLabels = net$colors
+moduleColors = labels2colors(net$colors)
+MEs = net$MEs;
+geneTree = net$dendrograms[[1]];
+save(MEs, moduleLabels, moduleColors, geneTree,
+     file = paste(out_name,"wgcna.RData",sep='.'))

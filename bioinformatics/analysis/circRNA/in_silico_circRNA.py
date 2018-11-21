@@ -52,7 +52,14 @@ def get_flank_intron(chrom, exon_combine, introns):
     type=click.Path(dir_okay=False, exists=True),
     required=True
 )
-def main(input_gtf, in_silico_circ, real_circ_table):
+@click.option(
+    '-e',
+    '--gene_exp',
+    type=click.Path(dir_okay=False, exists=True),
+    default=None,
+    help='gene expression filter.'
+)
+def main(input_gtf, in_silico_circ, real_circ_table, gene_exp):
     real_circ_df = pd.read_table(real_circ_table)
     real_circ_df.loc[:, 'chrom'] = real_circ_df.chrom.astype(str)
     real_circ_df = real_circ_df.set_index(['chrom', 'start', 'end'])
@@ -61,7 +68,13 @@ def main(input_gtf, in_silico_circ, real_circ_table):
     gtf_df = gtfparse.read_gtf(input_gtf)
     exon_df = gtf_df[gtf_df.feature == 'exon']
     exon_df = exon_df.set_index('transcript_id')
+    exon_df = exon_df.sort_values(['seqname', 'start'])
     exon_df.loc[:, 'start_0base'] = exon_df.start - 1
+    # gene exp cat df
+    if gene_exp is not None:
+        gene_exp_df = pd.read_table(gene_exp)
+        exp_genes_df = gene_exp_df[gene_exp_df.tpm >= 10]
+        exon_df = exon_df[exon_df.gene_id.isin(exp_genes_df.Gene_id)]
     for each_tr in exon_df.index.unique():
         # in silico circRNA from same transcript set
         if each_tr not in real_circ_df.isoformName.unique():
