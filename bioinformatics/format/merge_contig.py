@@ -12,6 +12,7 @@ def merge_contig_gtf(gtf_file, ctg_offset, new_name='chrUn'):
     file_sfx = gtf_file.suffix
     new_gtf_file = gtf_file.with_suffix(f'.merge_ctg{file_sfx}')
     ctg_offset_df = pd.read_table(ctg_offset, index_col=0)
+    ctg_offset_df.index = [str(each) for each in ctg_offset_df.index]
     new_gtf_inf = open(new_gtf_file, 'w')
     with open(gtf_file) as gtf_inf:
         for eachline in gtf_inf:
@@ -46,6 +47,7 @@ def merge_contig_fa(genome_fa, congtig_list, n_sep=100,
     a table with each contig's offset in super contig
     '''
     contig_df = pd.read_table(congtig_list, index_col=0, header=None)
+    contig_df.index = [str(each) for each in contig_df.index]
     n_sep_str = 'N' * n_sep
     contig_seq_list = []
     congtig_offset_dict = {}
