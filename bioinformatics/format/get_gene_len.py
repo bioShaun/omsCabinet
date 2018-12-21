@@ -1,5 +1,5 @@
 import pandas as pd
-from gtfparse import read_gtf_as_dataframe
+import gtfparse
 import click
 
 
@@ -19,7 +19,7 @@ import click
     type=click.Path(dir_okay=False)
 )
 def main(gtf, output):
-    gtf_df = read_gtf_as_dataframe(gtf)
+    gtf_df = gtfparse.read_gtf(gtf)
     gtf_exon_df = gtf_df[gtf_df.feature == 'exon']
     gtf_exon_df.loc[:, 'exon_len'] = gtf_exon_df.end - gtf_exon_df.start + 1
     tr_len = gtf_exon_df.groupby(['transcript_id'])['exon_len'].sum()
