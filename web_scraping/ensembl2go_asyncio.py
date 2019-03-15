@@ -294,7 +294,7 @@ async def ens_anno_map(ensembl_id, middle_file, client,
         if not skip:
             return None
     if anno_dfs:
-        anno_df = pd.concat(anno_dfs, sort=False)
+        anno_df = pd.concat(anno_dfs)
         anno_df = format_df(anno_df, sep='|', by='uniprot_id')
     else:
         anno_df = DataFrame([None], columns=['uniprot_id'])
@@ -318,7 +318,7 @@ async def map2df(map_func, query_ids, msg,
             middle_files = glob.glob(f'{middle_file}/*txt')
             finished_dfs = [pd.read_table(each_file) for each_file
                             in middle_files]
-            finished_df = pd.concat(finished_dfs, sort=False)
+            finished_df = pd.concat(finished_dfs)
         else:
             sys.exit(f'unsupported file type of {middle_file}!')
         left_ids = set(query_ids).difference(
@@ -363,8 +363,8 @@ async def map2df(map_func, query_ids, msg,
                             id_col_name=id_col_name,
                             skip=skip)
     if map_dfs:
-        map_df = pd.concat(map_dfs, sort=False)
-        map_df = pd.concat([finished_df, map_df], sort=False)
+        map_df = pd.concat(map_dfs)
+        map_df = pd.concat([finished_df, map_df])
     else:
         map_df = finished_df
     return map_df

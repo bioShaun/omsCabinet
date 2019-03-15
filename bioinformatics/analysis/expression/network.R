@@ -7,9 +7,11 @@ enableWGCNAThreads()
 
 
 p <- arg_parser("perform WGCNA analysis")
-p <- add_argument(p, '--exp_table', help = 'normalized expression table.')
+p <- add_argument(p, '--exp_table', help = 'expression table.')
 p <- add_argument(p, '--out_dir', help = 'output directory.')
 p <- add_argument(p, '--name', help = 'output name.')
+p <- add_argument(p, '--blocksize', help = 'output name.')
+p <- add_argument(p, '--power', help = 'WGCNA power', default = NULL)
 argv <- parse_args(p)
 
 ## get parameter
@@ -17,6 +19,8 @@ exp_table <- argv$exp_table
 out_dir <- argv$out_dir
 out_name <- argv$name
 sample_order <- argv$sample_order
+blocksize <- as.numeric(argv$blocksize)
+power_num <- argv$power
 
 ## mk out_dir
 if (! dir.exists(out_dir)) {
@@ -49,11 +53,11 @@ out_samples <- sample_order_v[sample_order_v %in% samples]
 mylogData <- mylogData[, out_samples]
 
 datExpr <- as.data.frame(t(mylogData));
+out_prefix <- paste(out_dir, out_name, sep='/')
 
+if (is.null(power_num)) {
 sft = pickSoftThreshold(datExpr, powerVector = powers, verbose = 5)
 cex1 = 0.9;
-
-out_prefix <- paste(out_dir, out_name, sep='/')
 
 pdf(paste(out_prefix, 'connectivity.pdf', sep='.'), width=8, height=8)
 plot(sft$fitIndices[,1], sft$fitIndices[,5],
@@ -63,7 +67,7 @@ text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
 dev.off()
 
 scale_fit <- -sign(sft$fitIndices[,3])*sft$fitIndices[,2]
-scale_fit_cut <- c(0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6)
+scale_fit_cut <- rev(seq(0.6, 0.9, 0.01))
 
 power_num <- which(scale_fit == max(scale_fit[2:30]))
 scale_cut <- max(scale_fit[2:30])
@@ -87,15 +91,20 @@ text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
      labels=powers,cex=cex1,col="red")
 abline(h=scale_cut,col="red")
 dev.off()
+} else {
+    power_num <- as.numeric(power_num)
+}
 
+print(power_num)
+print(blocksize)
 
 ## Constructing the gene network and identifying modules 
-net = blockwiseModules(datExpr, power = power_num, maxBlockSize = 55000,
+net = blockwiseModules(datExpr, power = power_num, maxBlockSize = blocksize,
                        TOMType = "unsigned", minModuleSize = 30,
                        reassignThreshold = 0, mergeCutHeight = 0.25,
                        numericLabels = TRUE, pamRespectsDendro = FALSE,
                        saveTOMs = TRUE,
-                       saveTOMFileBase = paste(out_name,"TOM",sep=''),
+                       saveTOMFileBase = paste(out_prefix, "TOM", sep='.'),
                        verbose = 3)
 
 ## Convert labels to colors for plotting
