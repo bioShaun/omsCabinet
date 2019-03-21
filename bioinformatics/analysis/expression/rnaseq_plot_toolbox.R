@@ -81,7 +81,7 @@ select_exp_data <- function(exp_obj, item_file, select='row') {
 
 
 load_exp_file <- function(exp_file, genes, samples) {
-  exp_obj <- data.table::fread(exp_file)
+  exp_obj <- data.table::fread(exp_file, check.names=F)
   total_target <- dim(exp_obj)[1]
   total_sample <- dim(exp_obj)[2] - 1
   print(paste('Total', total_target, 'targets,',
@@ -90,7 +90,7 @@ load_exp_file <- function(exp_file, genes, samples) {
   exp_obj <- select_exp_data(exp_obj, genes, 'row')
   exp_obj <- select_exp_data(exp_obj, samples, 'column')
   valid_input()
-  exp_df <- data.frame(exp_obj)
+  exp_df <- data.frame(exp_obj, check.names=F)
   rownames(exp_df) <- exp_df$target_id
   exp_df <- exp_df[, -1]
   return(exp_df)
