@@ -48,6 +48,12 @@ p <- add_argument(p, '--pca',
 p <- add_argument(p, '--cluster',
                   help = 'Cluster analysis.',
                   flag = TRUE)
+p <- add_argument(p, '--cluster_method',
+                  help = 'Cluster method [hcluster or kmeans]',
+                  default = 'hcluster')
+p <- add_argument(p, '--kmeans_center',
+                  help = 'kmeans center number.',
+                  default = NULL)
 argv <- parse_args(p)
 
 
@@ -69,14 +75,14 @@ cluster_cut_tree <- argv$cluster_cut_tree
 heatmap_cluster_cols <- !(argv$heatmap_not_cluster_cols)
 heatmap_cluster_rows <- !(argv$heatmap_not_cluster_rows)
 heatmap_scale <- argv$heatmap_scale
+cluster_method <- argv$cluster_method
+kmeans_center <- argv$kmeans_center
 
-# exp_table <- 'diff_gene.tpm.txt'
-# gene_list <- '203_4_vs_CKWT_3.diff.genes'
-# sample_list <- 'sample.list2'
-# group_vs_sample <- 'group.sample'
+
+
 # out_prefix <- '203_4_vs_CKWT_3'
-# is_test <- FALSE
-# group_mean_exp <- FALSE
+
+
 # cluster <- F
 # heatmap <- TRUE
 # pca <- F
@@ -84,6 +90,19 @@ heatmap_scale <- argv$heatmap_scale
 # heatmap_cluster_cols <- F
 # heatmap_cluster_rows <- T
 # heatmap_scale <- 'none'
+
+# exp_table <- 'WT&58_expression.txt'
+# gene_list <- NA
+# sample_list <- NA
+# group_vs_sample <- NA
+# group_mean_exp <- FALSE
+# cluster_method <- 'kmeans'
+# kmeans_center <- 4
+# is_test <- T
+# out_prefix <- 'test'
+# cluster <- T
+# heatmap <- F
+# pca <- F
 
 if ( heatmap | pca | cluster){
   check_input(exp_table, 'Expression table is needed!')
@@ -115,6 +134,8 @@ if ( heatmap | pca | cluster){
   }
   if (cluster) {
     print('Cluster plot.')
-    cluster_plot(exp_df, sample_inf, out_prefix)
+    cluster_plot(exp_df, sample_inf, out_prefix, 
+                 method=cluster_method, kmeans_center=kmeans_center,
+                 cluster_cut_tree=cluster_cut_tree)
   }
 }
