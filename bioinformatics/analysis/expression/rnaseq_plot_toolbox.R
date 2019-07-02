@@ -54,12 +54,24 @@ p <- add_argument(p, '--cluster_method',
 p <- add_argument(p, '--kmeans_center',
                   help = 'kmeans center number.',
                   default = NULL)
+p <- add_argument(p, '--gene_limit',
+                  help = 'gene number limit.',
+                  default = NULL)
 argv <- parse_args(p)
 
 
 MIN_CLUSTER_NUM = 10
 MIN_CLUSTER_POR = 0.005
 DIFF_HEATMAP_GENE = 40000
+
+if (is.na(gene_limit)) {
+  gene_limit = DIFF_HEATMAP_GENE
+} else if (gene_limit == 'all') {
+  gene_limit = Inf
+} else {
+  gene_limit = as.numeric(argv$gene_limit)
+}
+
 
 exp_table <- argv$exp_table
 gene_list <- argv$gene_list
@@ -90,7 +102,7 @@ kmeans_center <- argv$kmeans_center
 # heatmap_cluster_cols <- F
 # heatmap_cluster_rows <- T
 # heatmap_scale <- 'none'
-
+# 
 # exp_table <- 'WT&58_expression.txt'
 # gene_list <- NA
 # sample_list <- NA
@@ -103,12 +115,14 @@ kmeans_center <- argv$kmeans_center
 # cluster <- T
 # heatmap <- F
 # pca <- F
+# gene_limit <- 1000000
 
 if ( heatmap | pca | cluster){
   check_input(exp_table, 'Expression table is needed!')
   exp_df <- load_exp_file(exp_table, 
                           gene_list,
-                          sample_list)
+                          sample_list,
+                          gene_limit=gene_limit)
   exp_df <- test_data(exp_df, is_test)
   if (group_mean_exp) {
     print('Group sample expression by mean.')
