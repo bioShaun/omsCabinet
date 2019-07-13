@@ -1,9 +1,7 @@
-import fire
-import delegator
 import re
-from pathlib import Path
+import fire
 import asyncio
-
+from pathlib import Path
 
 clean_reads_pattern = '(.*).R([1,2]).clean.fastq.gz'
 low_qual_reads_pattern = '(.*).R([1,2]).lowqual.fastq.gz'
@@ -15,8 +13,7 @@ async def run(cmd, semaphore):
         proc = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+            stderr=asyncio.subprocess.PIPE)
         stdout, stderr = await proc.communicate()
         # await asyncio.sleep(3)
         # print(stdout)
@@ -31,8 +28,8 @@ def load_fq_files(chip_fq_dir, reads_pattern, fq_dict):
             try:
                 fq_dict[sample_name][reads_num].append(str(each_file))
             except KeyError:
-                fq_dict.setdefault(sample_name, {})[
-                    reads_num] = [str(each_file)]
+                fq_dict.setdefault(sample_name,
+                                   {})[reads_num] = [str(each_file)]
 
 
 def merge_chip_fq(chip_fq_dir, thread=4):
