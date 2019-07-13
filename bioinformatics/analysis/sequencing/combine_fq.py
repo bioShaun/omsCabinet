@@ -1,7 +1,6 @@
 import click
-import asyncio
 from pathlib import Path
-from omutils import async_run
+from omutils import async_batch_sh_jobs
 from collections import defaultdict
 
 CWD = Path().cwd()
@@ -39,12 +38,7 @@ def main(fq_dir, out_dir, fq_suffix, mode, thread):
             cmd = f'cat {fq_i_path_str} > {out_dir}/{fq_i}'
         cmd_list.append(cmd)
 
-    semaphore = asyncio.Semaphore(thread)
-    loop = asyncio.get_event_loop()
-    if cmd_list:
-        coro_list = [async_run(cmd, semaphore) for cmd in cmd_list]
-        loop.run_until_complete(asyncio.wait(coro_list))
-    loop.close()
+    async_batch_sh_jobs(cmd_list, thread)
 
 
 if __name__ == "__main__":
