@@ -64,14 +64,6 @@ MIN_CLUSTER_NUM = 10
 MIN_CLUSTER_POR = 0.005
 DIFF_HEATMAP_GENE = 40000
 
-if (is.na(gene_limit)) {
-  gene_limit = DIFF_HEATMAP_GENE
-} else if (gene_limit == 'all') {
-  gene_limit = Inf
-} else {
-  gene_limit = as.numeric(argv$gene_limit)
-}
-
 
 exp_table <- argv$exp_table
 gene_list <- argv$gene_list
@@ -89,6 +81,15 @@ heatmap_cluster_rows <- !(argv$heatmap_not_cluster_rows)
 heatmap_scale <- argv$heatmap_scale
 cluster_method <- argv$cluster_method
 kmeans_center <- argv$kmeans_center
+gene_limit <- argv$gene_limit
+
+if (is.na(gene_limit)) {
+  gene_limit = DIFF_HEATMAP_GENE
+} else if (gene_limit == 'all') {
+  gene_limit = Inf
+} else {
+  gene_limit = as.numeric(gene_limit)
+}
 
 
 
@@ -127,7 +128,7 @@ if ( heatmap | pca | cluster){
   if (group_mean_exp) {
     print('Group sample expression by mean.')
     check_input(group_vs_sample, 'Calculate group mean expression need group information.')
-    exp_df <- exp_by_group(exp_df, group_vs_sample)
+    exp_df <- exp_by_group(exp_df, group_vs_sample, sample_list)
   }
   sample_inf <- label_sample(exp_df, 
                              group_vs_sample,

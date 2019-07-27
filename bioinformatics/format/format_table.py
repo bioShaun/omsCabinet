@@ -10,6 +10,7 @@ def format_df(table_file, by, outfile, sep=',', empty_rep=None):
     gene_df = pd.read_table(table_file)
 
     def my_unique(x, sep=','):
+        nonlocal empty_rep
         unique_x = pd.unique(x.dropna())
         if str(unique_x.dtype) == 'float64':
             unique_x = unique_x.astype('int')
