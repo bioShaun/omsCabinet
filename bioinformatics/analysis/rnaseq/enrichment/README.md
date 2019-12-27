@@ -1,10 +1,10 @@
-## Enrichment
+# Enrichment
 
 存放与富集分析相关脚本
 
-### plot
+## plot
 
-#### enrich_scatter.R
+### [enrich_scatter.R](enrich_scatter.R)
 
 GO (goseq) / KEGG (KOBAS 2.0) 分析结果散点图
 
