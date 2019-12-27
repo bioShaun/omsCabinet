@@ -17,6 +17,5 @@ Rscript enrich_scatter.R \
 
 ```
 
-example:
 <img src="example/example.enrichment.scatter_plot.png" width="500" align=center />
 
