@@ -4,6 +4,6 @@ A place to store scripts written for specific usage, maybe not well documented a
 
 ### rnaseq
 
-#### [enrichment](bioinformatics/analysis/rnaseq/enrichment/README.md)
+- [enrichment](bioinformatics/analysis/rnaseq/enrichment/README.md)
 
 ### [Denovo](bioinformatics/analysis/denovo/README.md)
