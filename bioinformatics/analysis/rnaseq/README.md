@@ -4,6 +4,13 @@
 
 #### gene_len_from_gtf.py
 
+```bash
+python gene_len_from_gtf.py \
+    --gtf genome.gtf \
+    --output gene_length.txt
+```
+
+
 ### 富集分析
 
 #### enrich_scatter.R
