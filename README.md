@@ -6,4 +6,4 @@
 
 - [enrichment](bioinformatics/analysis/rnaseq/enrichment/README.md)
 
-### [Denovo](bioinformatics/analysis/denovo/README.md)
+### [Denovo](bioinformatics/analysis/denovo/)
