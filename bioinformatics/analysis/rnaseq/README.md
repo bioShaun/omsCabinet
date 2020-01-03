@@ -1,10 +1,12 @@
-# Enrichment
+## RNAseq
 
-存放与富集分析相关脚本
+### 参考基因组文件准备
 
-## plot
+#### gene_len_from_gtf.py
 
-### [enrich_scatter.R](enrich_scatter.R)
+### enrichment
+
+#### enrich_scatter.R
 
 GO (goseq) / KEGG (KOBAS 2.0) 分析结果散点图
 
