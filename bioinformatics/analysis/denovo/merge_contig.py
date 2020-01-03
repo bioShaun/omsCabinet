@@ -78,10 +78,10 @@ def merge_contig_fa(genome_fa, congtig_list, n_sep=100,
     return genome_merge_ctg_fa, ctg_offset_file
 
 
-def merge_contig(genome_fa, congtig_list, n_sep=100,
+def merge_contig(genome_fa, contig_list, n_sep=100,
                  merge_name='chrUn', gtf_file=None):
     # merge contig fastas
-    _, ctg_offset_file = merge_contig_fa(genome_fa, congtig_list, n_sep=100,
+    _, ctg_offset_file = merge_contig_fa(genome_fa, contig_list, n_sep=100,
                                          merge_name=merge_name)
     # change contig names in gtf
     if gtf_file is not None:

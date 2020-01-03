@@ -1,8 +1,8 @@
 # omsCabinet
-A place to store scripts written for specific usage, maybe not well documented and a little mess up, maybe usefull someday.
 
+脚本存放，归档
 
-### rnaseq
+### RNAseq
 
 - [enrichment](bioinformatics/analysis/rnaseq/enrichment/README.md)
 
