@@ -4,7 +4,7 @@
 
 #### gene_len_from_gtf.py
 
-### enrichment
+### 富集分析
 
 #### enrich_scatter.R
 
