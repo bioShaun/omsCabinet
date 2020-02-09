@@ -100,6 +100,7 @@ class Blastobj:
         if self.blast_file.is_file():
             fasta = SeqIO.parse(self.blast_file, "fasta")
             if any(fasta):
+                fasta = SeqIO.parse(self.blast_file, "fasta")
                 self._fa_file = self.blast_file
                 prot_seqs = itertools.takewhile(is_prot,
                                                 itertools.islice(fasta, 10))

@@ -164,6 +164,8 @@ def add_by_gene(raw_gene, f_gene, raw_gene_entry,
     if rm_gene:
         rm_gene_df = pd.read_csv(rm_gene, sep='\t',
                                  header=None, index_col=0)
+    else:
+        rm_gene_df = pd.DataFrame([])
     out_inf_list = []
     for gene_id in raw_gene:
         if gene_id in f_gene_entry:
